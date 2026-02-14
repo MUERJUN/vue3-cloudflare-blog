@@ -13,7 +13,22 @@
           <a href="#" class="nav-item">首页</a>
           <a href="#" class="nav-item">项目</a>
           <a href="#" class="nav-item">关于</a>
-          <button class="login-btn" @click="showLogin = true">登录</button>
+          
+          <!-- 登录/用户信息切换 -->
+          <div v-if="!isLogin" class="auth-btns">
+            <button class="register-btn" @click="showRegister = true">注册</button>
+            <button class="login-btn" @click="showLogin = true">登录</button>
+          </div>
+          
+          <div v-else class="user-info" @click="showProfile = true">
+            <img :src="userInfo.avatar" class="user-avatar" />
+            <div class="user-name-wrap">
+              <span class="user-nickname">{{ userInfo.nickname || userInfo.username }}</span>
+              <!-- 管理员标识：仅 admin 账号显示 -->
+              <span v-if="userInfo.username === 'admin'" class="admin-tag">管理员</span>
+            </div>
+            <button class="logout-btn" @click.stop="handleLogout">退出</button>
+          </div>
         </nav>
       </div>
     </header>
@@ -100,6 +115,71 @@
         </div>
       </div>
     </div>
+
+    <!-- 注册弹窗 -->
+    <div class="modal-mask" v-if="showRegister" @click="showRegister = false">
+      <div class="modal-content neon-card" @click.stop>
+        <div class="modal-header">
+          <h3 class="modal-title">用户注册</h3>
+          <button class="close-btn" @click="showRegister = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-item">
+            <label>用户名</label>
+            <input type="text" v-model="registerForm.username" placeholder="请输入用户名" />
+          </div>
+          <div class="form-item">
+            <label>邮箱</label>
+            <input type="email" v-model="registerForm.email" placeholder="请输入邮箱" />
+          </div>
+          <div class="form-item">
+            <label>验证码</label>
+            <div style="display: flex; gap: 10px;">
+              <input type="text" v-model="registerForm.code" placeholder="请输入验证码" />
+              <button class="send-code-btn" @click="sendCode" :disabled="countdown > 0">
+                {{ countdown > 0 ? `${countdown}s后重发` : '发送验证码' }}
+              </button>
+            </div>
+          </div>
+          <div class="form-item">
+            <label>密码</label>
+            <input type="password" v-model="registerForm.password" placeholder="请输入密码" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="cancel-btn" @click="showRegister = false">取消</button>
+          <button class="confirm-btn" @click="handleRegister">注册</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 个人中心弹窗（修改昵称/头像） -->
+    <div class="modal-mask" v-if="showProfile" @click="showProfile = false">
+      <div class="modal-content neon-card" @click.stop>
+        <div class="modal-header">
+          <h3 class="modal-title">
+            个人中心
+            <span v-if="userInfo.username === 'admin'" class="admin-tag">管理员</span>
+          </h3>
+          <button class="close-btn" @click="showProfile = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-item">
+            <label>头像</label>
+            <img :src="userInfo.avatar" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 10px;" />
+            <input type="text" v-model="profileForm.avatar" placeholder="输入头像URL" />
+          </div>
+          <div class="form-item">
+            <label>昵称</label>
+            <input type="text" v-model="profileForm.nickname" placeholder="输入新昵称" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="cancel-btn" @click="showProfile = false">取消</button>
+          <button class="confirm-btn" @click="handleUpdateProfile">保存修改</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -128,6 +208,27 @@ const loginForm = ref({
   password: ""
 });
 
+// 注册相关
+const showRegister = ref(false);
+const registerForm = ref({
+  username: "",
+  email: "",
+  code: "",
+  password: ""
+});
+const countdown = ref(0);
+
+// 个人中心相关
+const showProfile = ref(false);
+const userInfo = ref({});
+const profileForm = ref({
+  nickname: "",
+  avatar: ""
+});
+
+// 核心状态：是否登录
+const isLogin = ref(false);
+
 // 随机封面渐变（保持样式一致）
 const getRandomCover = () => {
   const covers = [
@@ -144,20 +245,42 @@ const formatTime = (timeStr) => {
   return new Date(timeStr).toLocaleDateString('zh-CN');
 };
 
-// 🌟 页面加载时获取后端真实文章数据
-onMounted(async () => {
-  try {
-    console.log('接口地址：', `${baseURL}/api/articles`); // 控制台打印地址，方便调试
-    const res = await axios.get(`${baseURL}/api/articles`);
-    articles.value = res.data; // 把后端数据赋值给articles
-    console.log('后端返回的文章数据：', articles.value); // 打印数据，确认是否获取成功
-  } catch (err) {
-    console.error('获取文章失败：', err);
-    alert('获取文章失败，请检查后端接口是否正常！');
+// 发送验证码
+const sendCode = async () => {
+  if (!registerForm.value.email) {
+    alert('请先输入邮箱！');
+    return;
   }
-});
+  try {
+    await axios.post(`${baseURL}/api/verify-code`, { email: registerForm.value.email });
+    alert('验证码已发送，请查收邮件！');
+    countdown.value = 60;
+    const timer = setInterval(() => {
+      countdown.value--;
+      if (countdown.value <= 0) clearInterval(timer);
+    }, 1000);
+  } catch (err) {
+    alert('发送失败：' + err.response?.data?.msg || err.message);
+  }
+};
 
-// 🌟 对接后端登录接口
+// 注册
+const handleRegister = async () => {
+  try {
+    const res = await axios.post(`${baseURL}/api/register`, registerForm.value);
+    if (res.data.code === 200) {
+      alert('注册成功！请登录');
+      showRegister.value = false;
+      showLogin.value = true;
+    } else {
+      alert(res.data.msg);
+    }
+  } catch (err) {
+    alert('注册失败：' + err.response?.data?.msg || err.message);
+  }
+};
+
+// 登录
 const handleLogin = async () => {
   if (!loginForm.value.username || !loginForm.value.password) {
     alert('请输入用户名和密码！');
@@ -171,9 +294,20 @@ const handleLogin = async () => {
     });
 
     if (res.data.code === 200) {
+      localStorage.setItem('token', res.data.token);
       alert('登录成功！');
-      localStorage.setItem('token', res.data.token); // 保存Token
       showLogin.value = false;
+
+      // 登录成功后立即获取用户信息，更新页面
+      const userRes = await axios.get(`${baseURL}/api/user/me`, {
+        headers: { Authorization: `Bearer ${res.data.token}` }
+      });
+      userInfo.value = userRes.data;
+      profileForm.value = { 
+        nickname: userRes.data.nickname, 
+        avatar: userRes.data.avatar 
+      };
+      isLogin.value = true; // 标记为已登录，页面自动更新
     } else {
       alert(res.data.msg || '登录失败');
     }
@@ -182,6 +316,76 @@ const handleLogin = async () => {
     alert('登录失败，请检查用户名密码或后端接口！');
   }
 };
+
+// 修改个人信息
+const handleUpdateProfile = async () => {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    alert('请先登录！');
+    return;
+  }
+  try {
+    const res = await axios.post(`${baseURL}/api/user/update`, profileForm.value, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.data.code === 200) {
+      alert('修改成功！');
+      userInfo.value.nickname = profileForm.value.nickname;
+      userInfo.value.avatar = profileForm.value.avatar;
+      showProfile.value = false;
+    } else {
+      alert(res.data.msg);
+    }
+  } catch (err) {
+    alert('修改失败：' + err.response?.data?.msg || err.message);
+  }
+};
+
+// 退出登录
+const handleLogout = () => {
+  if (confirm('确定要退出登录吗？')) {
+    localStorage.removeItem('token');
+    isLogin.value = false; // 页面自动恢复登录按钮
+    userInfo.value = {};
+    alert('已退出登录');
+  }
+};
+
+// 页面加载时获取后端真实文章数据 + 检查登录状态
+onMounted(async () => {
+  // 1. 获取文章列表
+  try {
+    console.log('接口地址：', `${baseURL}/api/articles`); // 控制台打印地址，方便调试
+    const res = await axios.get(`${baseURL}/api/articles`);
+    articles.value = res.data; // 把后端数据赋值给articles
+    console.log('后端返回的文章数据：', articles.value); // 打印数据，确认是否获取成功
+  } catch (err) {
+    console.error('获取文章失败：', err);
+    alert('获取文章失败，请检查后端接口是否正常！');
+  }
+
+  // 2. 自动检查登录状态
+  const token = localStorage.getItem('token');
+  if (token) {
+    try {
+      // 验证Token并获取用户信息
+      const userRes = await axios.get(`${baseURL}/api/user/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      userInfo.value = userRes.data;
+      profileForm.value = { 
+        nickname: userRes.data.nickname, 
+        avatar: userRes.data.avatar 
+      };
+      isLogin.value = true; // 标记为已登录，页面自动更新
+    } catch (err) {
+      // Token过期/无效，清除Token
+      localStorage.removeItem('token');
+      isLogin.value = false;
+      alert('登录状态已过期，请重新登录');
+    }
+  }
+});
 </script>
 
 <style scoped>
@@ -280,6 +484,24 @@ const handleLogin = async () => {
 .nav-item:hover {
   color: #4facfe;
 }
+
+/* 登录/注册按钮样式 */
+.auth-btns {
+  display: flex;
+  gap: 10px;
+}
+.register-btn {
+  padding: 8px 20px;
+  background: transparent;
+  border: 1px solid #4facfe;
+  color: #4facfe;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.register-btn:hover {
+  background: rgba(79, 188, 254, 0.1);
+}
 .login-btn {
   padding: 8px 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -292,6 +514,53 @@ const handleLogin = async () => {
 .login-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+/* 用户信息展示样式 */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  cursor: pointer;
+}
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #4facfe;
+}
+.user-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.user-nickname {
+  color: #e2e8f0;
+  font-size: 14px;
+}
+/* 管理员标签样式 */
+.admin-tag {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.logout-btn {
+  padding: 4px 8px;
+  background: rgba(245, 87, 108, 0.1);
+  border: 1px solid #f5576c;
+  color: #f5576c;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 5px;
+  transition: all 0.3s;
+}
+.logout-btn:hover {
+  background: rgba(245, 87, 108, 0.2);
 }
 
 /* 主体内容 */
@@ -486,7 +755,7 @@ const handleLogin = async () => {
   margin: 0 auto;
 }
 
-/* 登录弹窗 */
+/* 登录/注册/个人中心弹窗通用样式 */
 .modal-mask {
   position: fixed;
   top: 0;
@@ -586,6 +855,23 @@ const handleLogin = async () => {
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
 }
 
+/* 发送验证码按钮样式 */
+.send-code-btn {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.send-code-btn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 /* 响应式适配 */
 @media (max-width: 1200px) {
   .header-inner, .main-inner, .footer-inner {
@@ -610,6 +896,9 @@ const handleLogin = async () => {
   .article-cover {
     width: 100%;
     height: 120px;
+  }
+  .modal-content {
+    width: 90%;
   }
 }
 </style>
