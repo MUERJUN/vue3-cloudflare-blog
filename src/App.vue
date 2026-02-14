@@ -246,25 +246,23 @@ const formatTime = (timeStr) => {
 };
 
 // 发送验证码
-async function sendCode() {
-  try {
-    const res = await axios.post('/api/verify-code', {
-      email: '3442578363@qq.com'
-    });
-    alert('成功：' + JSON.stringify(res.data));
-  } catch (err) {
-    // 把所有信息都弹出来，不要吞
-    const info = {
-      message: err.message,
-      response: err.response ? {
-        status: err.response.status,
-        data: err.response.data
-      } : '无响应',
-      request: err.request ? '有请求' : '无请求'
-    };
-    alert('失败：' + JSON.stringify(info, null, 2));
+const sendCode = async () => {
+  if (!registerForm.value.email) {
+    alert('请先输入邮箱！');
+    return;
   }
-}
+  try {
+    await axios.post(`${baseURL}/api/verify-code`, { email: registerForm.value.email });
+    alert('验证码已发送，请查收邮件！');
+    countdown.value = 60;
+    const timer = setInterval(() => {
+      countdown.value--;
+      if (countdown.value <= 0) clearInterval(timer);
+    }, 1000);
+  } catch (err) {
+    alert('发送失败：' + err.response?.data?.msg || err.message);
+  }
+};
 
 // 注册
 const handleRegister = async () => {
