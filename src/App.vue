@@ -52,13 +52,14 @@
           </div>
           
           <div class="article-list">
+            <!-- 显示真实后端文章数据 -->
             <div v-for="article in articles" :key="article.id" class="article-card neon-card">
-              <div class="article-cover" :style="{ background: article.cover }"></div>
+              <div class="article-cover" :style="{ background: getRandomCover() }"></div>
               <div class="article-body">
                 <div class="article-title">{{ article.title }}</div>
                 <div class="article-meta">
                   <span class="category-tag">{{ article.category }}</span>
-                  <span>{{ article.create_time }}</span>
+                  <span>{{ formatTime(article.create_time) }}</span>
                 </div>
                 <div class="article-desc">{{ article.content.slice(0, 120) }}...</div>
                 <button class="read-more-btn">阅读全文 →</button>
@@ -103,7 +104,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import axios from 'axios';
+
+// 🌟 核心：读取环境变量 + 配置后端接口地址
+const baseURL = import.meta.env.VITE_API_BASE_URL || 'https://blog-api.3442578363.workers.dev';
 
 // 分类数据
 const categories = ref([
@@ -113,33 +118,8 @@ const categories = ref([
   { id: 4, name: "学习笔记" }
 ]);
 
-// 文章数据（带渐变封面）
-const articles = ref([
-  {
-    id: 1,
-    title: "Vue3 + Cloudflare Pages 前端部署实战",
-    category: "前端开发",
-    cover: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    content: "本文详细讲解如何将 Vue3 项目打包并部署到 Cloudflare Pages，利用 Cloudflare 全球 CDN 加速，实现免费、高速的网页访问。包括打包配置、静态资源处理、自定义域名绑定等关键步骤。",
-    create_time: "2026-02-14"
-  },
-  {
-    id: 2,
-    title: "Cloudflare Workers + D1 实现无服务器后端",
-    category: "云原生部署",
-    cover: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-    content: "Cloudflare Workers 是 Serverless 运行环境，结合 D1 数据库可以快速搭建无服务器后端。本文从零开始实现博客的接口开发、JWT 鉴权、数据存储，全程免费无需服务器。",
-    create_time: "2026-02-14"
-  },
-  {
-    id: 3,
-    title: "全栈开发：从 Vue3 到 Cloudflare 完整流程",
-    category: "全栈实践",
-    cover: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-    content: "作为一名全栈开发者，从需求分析、技术选型、前端开发、后端接口、部署上线，一步步完成个人博客系统的开发。重点讲解前后端对接、跨域处理、权限控制等核心问题。",
-    create_time: "2026-02-14"
-  }
-]);
+// 文章数据（从后端获取，不再用模拟数据）
+const articles = ref([]);
 
 // 登录相关
 const showLogin = ref(false);
@@ -148,12 +128,58 @@ const loginForm = ref({
   password: ""
 });
 
-const handleLogin = () => {
-  if (loginForm.value.username === "admin" && loginForm.value.password === "123456") {
-    alert("登录成功！后续可添加文章管理功能");
-    showLogin.value = false;
-  } else {
-    alert("用户名或密码错误（默认：admin/123456）");
+// 随机封面渐变（保持样式一致）
+const getRandomCover = () => {
+  const covers = [
+    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+    "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+  ];
+  return covers[Math.floor(Math.random() * covers.length)];
+};
+
+// 时间格式化
+const formatTime = (timeStr) => {
+  if (!timeStr) return "";
+  return new Date(timeStr).toLocaleDateString('zh-CN');
+};
+
+// 🌟 页面加载时获取后端真实文章数据
+onMounted(async () => {
+  try {
+    console.log('接口地址：', `${baseURL}/api/articles`); // 控制台打印地址，方便调试
+    const res = await axios.get(`${baseURL}/api/articles`);
+    articles.value = res.data; // 把后端数据赋值给articles
+    console.log('后端返回的文章数据：', articles.value); // 打印数据，确认是否获取成功
+  } catch (err) {
+    console.error('获取文章失败：', err);
+    alert('获取文章失败，请检查后端接口是否正常！');
+  }
+});
+
+// 🌟 对接后端登录接口
+const handleLogin = async () => {
+  if (!loginForm.value.username || !loginForm.value.password) {
+    alert('请输入用户名和密码！');
+    return;
+  }
+
+  try {
+    const res = await axios.post(`${baseURL}/api/login`, {
+      username: loginForm.value.username,
+      password: loginForm.value.password
+    });
+
+    if (res.data.code === 200) {
+      alert('登录成功！');
+      localStorage.setItem('token', res.data.token); // 保存Token
+      showLogin.value = false;
+    } else {
+      alert(res.data.msg || '登录失败');
+    }
+  } catch (err) {
+    console.error('登录失败：', err);
+    alert('登录失败，请检查用户名密码或后端接口！');
   }
 };
 </script>
