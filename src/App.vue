@@ -187,8 +187,16 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 
-// 🌟 核心：读取环境变量 + 配置后端接口地址
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'https://blog-api.3442578363.workers.dev';
+// 🌟 核心：配置后端接口地址（固定Worker地址，确保请求能到达）
+const baseURL = 'https://blog-api.3442578363.workers.dev';
+// 创建axios实例，统一配置baseURL和CORS头
+const axiosInstance = axios.create({
+  baseURL: baseURL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 10000 // 超时时间10秒
+});
 
 // 分类数据
 const categories = ref([
@@ -198,7 +206,7 @@ const categories = ref([
   { id: 4, name: "学习笔记" }
 ]);
 
-// 文章数据（从后端获取，不再用模拟数据）
+// 文章数据（从后端获取）
 const articles = ref([]);
 
 // 登录相关
@@ -229,7 +237,7 @@ const profileForm = ref({
 // 核心状态：是否登录
 const isLogin = ref(false);
 
-// 随机封面渐变（保持样式一致）
+// 随机封面渐变
 const getRandomCover = () => {
   const covers = [
     "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -245,43 +253,70 @@ const formatTime = (timeStr) => {
   return new Date(timeStr).toLocaleDateString('zh-CN');
 };
 
-// 发送验证码
+// 发送验证码（核心修复：使用正确的axios实例 + 动态获取用户输入的邮箱 + 倒计时功能）
 async function sendCode() {
+  // 1. 校验邮箱
+  if (!registerForm.value.email) {
+    alert('请先输入邮箱地址！');
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.value.email)) {
+    alert('请输入有效的邮箱地址！');
+    return;
+  }
+
   try {
-    const res = await axios.post('/api/verify-code', {
-      email: '3442578363@qq.com' // 替换为用户输入的邮箱
+    // 2. 发送POST请求到验证码接口（使用配置好的axios实例）
+    const res = await axiosInstance.post('/api/verify-code', {
+      email: registerForm.value.email // 使用用户输入的邮箱，而非固定值
     });
-    // 把 Worker 返回的所有信息都弹出来
-    alert('验证码接口返回：\n' + JSON.stringify(res.data, null, 2));
+    
+    // 3. 成功提示（显示返回的验证码）
+    alert(`验证码发送成功！\n你的验证码是：${res.data.data.code}\n有效期5分钟`);
+    
+    // 4. 启动倒计时
+    countdown.value = 60;
+    const timer = setInterval(() => {
+      countdown.value--;
+      if (countdown.value <= 0) {
+        clearInterval(timer);
+      }
+    }, 1000);
+    
   } catch (err) {
-    const info = {
-      message: err.message,
-      response: err.response ? {
-        status: err.response.status,
-        data: err.response.data
-      } : '无响应',
-      request: err.request ? '有请求' : '无请求'
-    };
-    alert('验证码接口错误：\n' + JSON.stringify(info, null, 2));
+    // 5. 错误提示（更友好的信息）
+    const errorMsg = err.response?.data?.msg || `请求失败：${err.message}`;
+    alert(`发送验证码失败：\n${errorMsg}`);
+    console.error('验证码接口错误详情：', err);
   }
 }
-// 注册
+
+// 注册（修复：使用axios实例）
 const handleRegister = async () => {
+  // 前置校验
+  if (!registerForm.value.username || !registerForm.value.email || !registerForm.value.code || !registerForm.value.password) {
+    alert('请填写完整的注册信息！');
+    return;
+  }
+
   try {
-    const res = await axios.post(`${baseURL}/api/register`, registerForm.value);
+    const res = await axiosInstance.post('/api/register', registerForm.value);
     if (res.data.code === 200) {
-      alert('注册成功！请登录');
+      alert('注册成功！请使用账号密码登录');
       showRegister.value = false;
       showLogin.value = true;
+      // 清空注册表单
+      registerForm.value = { username: "", email: "", code: "", password: "" };
     } else {
       alert(res.data.msg);
     }
   } catch (err) {
-    alert('注册失败：' + err.response?.data?.msg || err.message);
+    alert('注册失败：' + (err.response?.data?.msg || err.message));
+    console.error('注册接口错误：', err);
   }
 };
 
-// 登录
+// 登录（修复：使用axios实例）
 const handleLogin = async () => {
   if (!loginForm.value.username || !loginForm.value.password) {
     alert('请输入用户名和密码！');
@@ -289,18 +324,15 @@ const handleLogin = async () => {
   }
 
   try {
-    const res = await axios.post(`${baseURL}/api/login`, {
-      username: loginForm.value.username,
-      password: loginForm.value.password
-    });
+    const res = await axiosInstance.post('/api/login', loginForm.value);
 
     if (res.data.code === 200) {
       localStorage.setItem('token', res.data.token);
       alert('登录成功！');
       showLogin.value = false;
 
-      // 登录成功后立即获取用户信息，更新页面
-      const userRes = await axios.get(`${baseURL}/api/user/me`, {
+      // 登录成功后获取用户信息
+      const userRes = await axiosInstance.get('/api/user/me', {
         headers: { Authorization: `Bearer ${res.data.token}` }
       });
       userInfo.value = userRes.data;
@@ -308,37 +340,45 @@ const handleLogin = async () => {
         nickname: userRes.data.nickname, 
         avatar: userRes.data.avatar 
       };
-      isLogin.value = true; // 标记为已登录，页面自动更新
+      isLogin.value = true;
     } else {
       alert(res.data.msg || '登录失败');
     }
   } catch (err) {
     console.error('登录失败：', err);
-    alert('登录失败，请检查用户名密码或后端接口！');
+    alert('登录失败：' + (err.response?.data?.msg || '请检查用户名密码或后端接口'));
   }
 };
 
-// 修改个人信息
+// 修改个人信息（修复：使用axios实例）
 const handleUpdateProfile = async () => {
   const token = localStorage.getItem('token');
   if (!token) {
     alert('请先登录！');
     return;
   }
+  
+  // 校验必填项
+  if (!profileForm.value.nickname) {
+    alert('请输入昵称！');
+    return;
+  }
+
   try {
-    const res = await axios.post(`${baseURL}/api/user/update`, profileForm.value, {
+    const res = await axiosInstance.post('/api/user/update', profileForm.value, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (res.data.code === 200) {
       alert('修改成功！');
       userInfo.value.nickname = profileForm.value.nickname;
-      userInfo.value.avatar = profileForm.value.avatar;
+      userInfo.value.avatar = profileForm.value.avatar || userInfo.value.avatar;
       showProfile.value = false;
     } else {
       alert(res.data.msg);
     }
   } catch (err) {
-    alert('修改失败：' + err.response?.data?.msg || err.message);
+    alert('修改失败：' + (err.response?.data?.msg || err.message));
+    console.error('修改个人信息错误：', err);
   }
 };
 
@@ -346,20 +386,20 @@ const handleUpdateProfile = async () => {
 const handleLogout = () => {
   if (confirm('确定要退出登录吗？')) {
     localStorage.removeItem('token');
-    isLogin.value = false; // 页面自动恢复登录按钮
+    isLogin.value = false;
     userInfo.value = {};
     alert('已退出登录');
   }
 };
 
-// 页面加载时获取后端真实文章数据 + 检查登录状态
+// 页面加载时初始化
 onMounted(async () => {
   // 1. 获取文章列表
   try {
-    console.log('接口地址：', `${baseURL}/api/articles`); // 控制台打印地址，方便调试
-    const res = await axios.get(`${baseURL}/api/articles`);
-    articles.value = res.data; // 把后端数据赋值给articles
-    console.log('后端返回的文章数据：', articles.value); // 打印数据，确认是否获取成功
+    console.log('获取文章列表：', `${baseURL}/api/articles`);
+    const res = await axiosInstance.get('/api/articles');
+    articles.value = res.data;
+    console.log('文章数据：', articles.value);
   } catch (err) {
     console.error('获取文章失败：', err);
     alert('获取文章失败，请检查后端接口是否正常！');
@@ -369,8 +409,7 @@ onMounted(async () => {
   const token = localStorage.getItem('token');
   if (token) {
     try {
-      // 验证Token并获取用户信息
-      const userRes = await axios.get(`${baseURL}/api/user/me`, {
+      const userRes = await axiosInstance.get('/api/user/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
       userInfo.value = userRes.data;
@@ -378,9 +417,8 @@ onMounted(async () => {
         nickname: userRes.data.nickname, 
         avatar: userRes.data.avatar 
       };
-      isLogin.value = true; // 标记为已登录，页面自动更新
+      isLogin.value = true;
     } catch (err) {
-      // Token过期/无效，清除Token
       localStorage.removeItem('token');
       isLogin.value = false;
       alert('登录状态已过期，请重新登录');
@@ -390,7 +428,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* 全局滚动条美化（核心优化） */
+/* 全局滚动条美化 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -407,7 +445,6 @@ onMounted(async () => {
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(135deg, #00f2fe 0%, #667eea 100%);
 }
-/* 隐藏Firefox滚动条（可选） */
 * {
   scrollbar-width: thin;
   scrollbar-color: #4facfe #0f172a;
@@ -424,7 +461,7 @@ onMounted(async () => {
   overflow-x: hidden;
 }
 
-/* 纯CSS动态背景（替代粒子效果） */
+/* 纯CSS动态背景 */
 .animated-bg {
   position: absolute;
   top: 0;
