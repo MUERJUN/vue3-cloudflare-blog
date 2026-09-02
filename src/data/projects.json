@@ -1,29 +1,56 @@
 [
   {
-    "id": "cyberblog",
-    "name": "CyberBlog",
+    "id": "vue3-cloudflare-blog",
+    "name": "vue3-cloudflare-blog",
     "role": "全栈博客系统",
-    "desc": "Vue3 + Vite 前端，文章/项目双数据源（Worker 接口优先，本地 JSON 兜底），支持后台写作与 Markdown 渲染。",
+    "desc": "正在运行的这个站点：Vue3 + Vite，文章/项目双数据源（Worker 接口优先、本地 JSON 兜底），支持后台写作与 Markdown 渲染，部署于 Cloudflare Pages。",
     "stack": ["Vue3", "Vite", "Cloudflare Pages"],
-    "url": "#",
+    "url": "https://github.com/MUERJUN/vue3-cloudflare-blog",
     "stars": 0
   },
   {
-    "id": "worker-api",
-    "name": "blog-api Worker",
-    "role": "后端 API 网关",
-    "desc": "Cloudflare Workers 上的轻量接口：文章列表、项目列表、用户认证。也正在规划写入接口。",
-    "stack": ["Cloudflare Workers", "KV"],
-    "url": "#",
+    "id": "xiaokeblog",
+    "name": "xiaokeblog",
+    "role": "双人记忆档案馆",
+    "desc": "用 Astro 构建的温柔小站：纪念日倒计时、去过的地方、聊天便笺、心愿清单与随手拍，纯静态输出，部署于 Cloudflare Pages。",
+    "stack": ["Astro", "Cloudflare Pages"],
+    "url": "https://github.com/MUERJUN/xiaokeblog",
     "stars": 0
   },
   {
-    "id": "md2html",
-    "name": "md2html-cli",
-    "role": "命令行小工具",
-    "desc": "Rust 写的 Markdown → HTML 转换器，二进制只有 3KB，零依赖。",
-    "stack": ["Rust"],
-    "url": "#",
+    "id": "traffic-congestion-analysis-system",
+    "name": "traffic-congestion-analysis-system",
+    "role": "机器学习数据分析系统",
+    "desc": "基于 METR-LA 历史道路传感器数据，建设城市道路拥堵风险预测与交通分析辅助系统：从数据审计、清洗、探索性分析到模型构建的完整闭环。",
+    "stack": ["Python", "Machine Learning", "METR-LA"],
+    "url": "https://github.com/MUERJUN/traffic-congestion-analysis-system",
     "stars": 1
+  },
+  {
+    "id": "LingjieHorrorMod",
+    "name": "LingjieHorrorMod",
+    "role": "游戏模组（Java）",
+    "desc": "Java 开发的恐怖题材游戏模组项目（Horror Mod），持续迭代中。",
+    "stack": ["Java", "Game Mod"],
+    "url": "https://github.com/MUERJUN/LingjieHorrorMod",
+    "stars": 0
+  },
+  {
+    "id": "pipi_homepage",
+    "name": "pipi_homepage",
+    "role": "程序化个人主页",
+    "desc": "一个抽象但不丑的个人主页，部署在 Cloudflare Workers 上。",
+    "stack": ["JavaScript", "Cloudflare Workers"],
+    "url": "https://github.com/MUERJUN/pipi_homepage",
+    "stars": 0
+  },
+  {
+    "id": "agent-cluster-showcase",
+    "name": "agent-cluster-showcase",
+    "role": "多智能体编排系统",
+    "desc": "Agent Cluster Orchestrator：基于 DAG 任务调度、资源锁与复审流程的多智能体开发系统，用于加速代码开发。",
+    "stack": ["Python", "DAG", "Multi-Agent"],
+    "url": "https://github.com/MUERJUN/agent-cluster-showcase",
+    "stars": 0
   }
 ]
