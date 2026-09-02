@@ -1,0 +1,29 @@
+[
+  {
+    "id": "edge-rendering-cloudflare",
+    "title": "把博客搬到 Cloudflare 边缘渲染后，我做了什么取舍",
+    "category": "云原生部署",
+    "tags": ["cloudflare", "workers", "performance"],
+    "date": "2026-08-12",
+    "summary": "静态与边缘渲染的分工、TTFB 实测、以及我放弃的那些炫技方案。",
+    "content": "## 起因\n\n之前的博客是纯静态构建，文章一多，改一次正文就要重新构建整个站点。后来我把数据层拆出去，**静态壳 + 接口拉取**，页面本体继续走 Cloudflare 的 CDN 缓存。\n\n## 取舍\n\n- 静态壳负责首屏，快且省：`TTFB` 稳定在 60ms 左右\n- 文章内容走接口，**写完即更**，不用重建\n- 代价是首屏多一次请求，但本地装在 `cache-first` 策略下几乎无感\n\n## 结论\n\n> 不是所有页面都需要 Edge 渲染。能静态就静态，把动态留给真正会变的部分。\n\n踩坑记录：接口跨域记得在 Worker 里配好 `CORS`，否则浏览器会安静地失败，很坑。"
+  },
+  {
+    "id": "vue3-composable-patterns",
+    "title": "Vue3 组合式 API：我常用的几个可复用模式",
+    "category": "前端开发",
+    "tags": ["vue3", "composables", "refactor"],
+    "date": "2026-07-28",
+    "summary": "把页面逻辑拆成可控的 composables：请求状态、主题、倒计时。",
+    "content": "## 为什么拆 composables\n\n组件一长，`ref` 和逻辑混在一起就很难维护。我习惯把**一类状态 + 它的行为**打包成一个函数：\n\n```js\n// useAsync.js\nimport { ref } from 'vue'\n\nexport function useAsync(fn) {\n  const loading = ref(false)\n  const error = ref('')\n  const data = ref(null)\n  async function run(...args) {\n    loading.value = true\n    error.value = ''\n    try {\n      data.value = await fn(...args)\n    } catch (e) {\n      error.value = e.message\n    } finally {\n      loading.value = false\n    }\n  }\n  return { loading, error, data, run }\n}\n```\n\n## 使用\n\n```js\nconst { loading, data, run } = useAsync(fetchPosts)\nrun()\n```\n\n测试、复用、替换都变得很简单。`watchEffect` + `computed` 再去组合，几乎能覆盖日常 80% 的场景。"
+  },
+  {
+    "id": "rust-tiny-cli",
+    "title": "用 Rust 写了一个 3KB 的命令行小工具",
+    "category": "前端开发",
+    "tags": ["rust", "cli", "tools"],
+    "date": "2026-07-02",
+    "summary": "从 idea 到 release 的 48 小时，以及我踩的两个坑。",
+    "content": "## Idea\n\n每天都要把 markdown 文件转成 html 片段贴到博客后台，索性写了个小工具。\n\n## 踩坑\n\n1. **stdout 编码**：Windows 下直接 `println!` 中文会乱码，需要设置 `Console::OutputEncoding`\n2. **依赖体积**：引入 `clap` 后二进制直接 5MB+，最后用 `std::env::args` 手写参数解析，**3KB 搞定**\n\n```rust\nfn main() {\n    let args: Vec<String> = std::env::args().collect();\n    let path = args.get(1).expect(\"usage: md2html <file>\");\n    let src = std::fs::read_to_string(path).expect(\"read failed\");\n    println!(\"{}\", to_html(&src));\n}\n```\n\n少即是多，工具尤其如此。"
+  }
+]
